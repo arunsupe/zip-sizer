@@ -30,6 +30,7 @@ type Args struct {
 	CompressionAlgorithm string  `arg:"-a,--compression-algorithm" help:"Compression algorithm (gzip or bzip2)"`
 	SampleRatio          float64 `arg:"-r,--sample-ratio" help:"Sample ratio for compression estimation"`
 	HumanReadable        bool    `arg:"-u,--human-readable" help:"Display sizes in human-readable format"`
+	Verbose              bool    `arg:"-v,--verbose" help:"Enable verbose output"`
 }
 
 var totalSize int64
@@ -62,7 +63,7 @@ func listFilesWithSizes(directory string, fileInfoChan chan<- FileInfo) {
 // concatenated file and then reading the data from the original files at those offsets.
 // Extract sampled data from the original files and write it to a pipe
 // This allows us to stream the sampled data without loading all files into memory at once
-func streamSampledData(fileInfoChan <-chan FileInfo, chunkSize, sampleSize int64) (io.Reader, error) {
+func streamSampledData(fileInfoChan <-chan FileInfo, chunkSize, sampleSize int64, verbose bool) (io.Reader, error) {
 	sampledDataPipe, sampledDataWriter := io.Pipe()
 
 	go func() {
@@ -80,6 +81,10 @@ func streamSampledData(fileInfoChan <-chan FileInfo, chunkSize, sampleSize int64
 				continue
 			}
 
+			// If verbose, print the file being processed
+			if verbose {
+				fmt.Printf("Sampling file: %s\n", file.Path)
+			}
 			f, err := os.Open(file.Path)
 			if err != nil {
 				sampledDataWriter.CloseWithError(err)
@@ -255,7 +260,7 @@ func main() {
 	go listFilesWithSizes(args.Directory, fileInfoChan)
 
 	// Stream the sampled data from the files
-	sampledData, err := streamSampledData(fileInfoChan, CHUNKSIZE, sampleSize)
+	sampledData, err := streamSampledData(fileInfoChan, CHUNKSIZE, sampleSize, args.Verbose)
 	if err != nil {
 		fmt.Printf("Error streaming sampled data: %v\n", err)
 		os.Exit(1)

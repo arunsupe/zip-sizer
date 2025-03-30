@@ -60,6 +60,7 @@ Run the program with the following command-line options:
     -a, --compression-algorithm: Compression algorithm (gzip or bzip2). Default: gzip.
     -r, --sample-ratio: Sample ratio for compression estimation (e.g., 0.1 for 10%). Default: 0.1.
     -u, --human-readable: Display sizes in human-readable format.
+    -v, --verbose: Show what is happening under the hood
 
 ## Output
 
