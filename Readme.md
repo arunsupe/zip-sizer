@@ -34,18 +34,11 @@ bin/zip-sizer -l 5 -a gzip -r 0.1 ~/Downloads  10.30s user 0.34s system 106% cpu
 
 -   Go (version 1.16 or later) must be installed on your system.
 
-### Steps
-
-1.  **Clone the Repository:**
+### Clone and build
 
 ```bash
-git clone [https://github.com/arunsupe/zip-sizer.git](https://github.com/arunsupe/zip-sizer.git)
+git clone https://github.com/arunsupe/zip-sizer.git
 cd zip-sizer
-```
-
-2.  **Build the Binary:**
-
-```bash
 go build -o bin/zip-sizer zip-sizer.go
 ```
 
@@ -54,19 +47,19 @@ go build -o bin/zip-sizer zip-sizer.go
 Run the program with the following command-line options:
 
 ```bash
-./bin/zip-sizer <directory> [options]
+./bin/zip-sizer [options] <directory>
 ```
 
 ## Positional Arguments
 
-    <directory>: The directory to scan for files.
+    <directory>: The directory to estimate the compressed size of.
 
 ## Options
 
     -l, --compression-level: Compression level (1-9). Default: 9.
     -a, --compression-algorithm: Compression algorithm (gzip or bzip2). Default: gzip.
     -r, --sample-ratio: Sample ratio for compression estimation (e.g., 0.1 for 10%). Default: 0.1.
-
+    -u, --human-readable: Display sizes in human-readable format.
 
 ## Output
 
