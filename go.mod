@@ -1,4 +1,4 @@
-module estimate-compression
+module zip-sizer
 
 go 1.22.5
 

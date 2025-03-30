@@ -1,12 +1,12 @@
-# Estimate Compression
+# zip-sizer
 
-`estimate-compression` is a command-line tool that estimates the compressed size of large directories. It works by intelligently sampling a fraction of the data to efficiently calculate the compression ratio. It supports gzip and bzip2. It is very __`memory efficient`__, and __`fast`__. Accuracy is about +/- 2.5% in my testing.
+`zip-sizer` is a command-line tool that estimates the compressed size of large directories. It works by intelligently sampling a fraction of the data to efficiently calculate the compression ratio. It supports gzip and bzip2. It is very __`memory efficient`__, and __`fast`__. Accuracy is about +/- 2.5% in my testing, but will obviously depend on type of files, size of the archive and sampling fraction.
 
 ## Example Usage
 
-Estimate the compressed size of files in the data directory using gzip with a compression level of 5 and a sample ratio of 20%:
+To estimate the compressed size of the ~/Downloads directory using gzip with a compression level set to 5 and sampling 10% of the data:
 ```bash
-> bin/estimate-compression -l 5 -a gzip -r 0.1 ~/Downloads 
+> bin/zip-sizer -l 5 -a gzip -r 0.1 ~/Downloads 
 
 # Output
 Total original size: 4003741457 bytes
@@ -14,12 +14,12 @@ Estimated compressed size: 3711794335 bytes
 
 
 # It is fast enough to be useful
-> time bin/estimate-compression -l 5 -a gzip -r 0.1 ~/Downloads
+> time bin/zip-sizer -l 5 -a gzip -r 0.1 ~/Downloads
 
 # Output
 Total original size: 4003741457 bytes
 Estimated compressed size: 3711794335 bytes
-bin/estimate-compression -l 5 -a gzip -r 0.1 ~/Downloads  10.30s user 0.34s system 106% cpu 9.952 total
+bin/zip-sizer -l 5 -a gzip -r 0.1 ~/Downloads  10.30s user 0.34s system 106% cpu 9.952 total
 
 ```
 
@@ -34,14 +34,14 @@ bin/estimate-compression -l 5 -a gzip -r 0.1 ~/Downloads  10.30s user 0.34s syst
 1.  **Clone the Repository:**
 
 ```bash
-git clone [https://github.com/arunsupe/estimate-compression.git](https://github.com/arunsupe/estimate-compression.git)
-cd estimate-compression
+git clone [https://github.com/arunsupe/zip-sizer.git](https://github.com/arunsupe/zip-sizer.git)
+cd zip-sizer
 ```
 
 2.  **Build the Binary:**
 
 ```bash
-go build -o bin/estimate-compression estimate-compression.go
+go build -o bin/zip-sizer zip-sizer.go
 ```
 
 ## Usage
@@ -49,7 +49,7 @@ go build -o bin/estimate-compression estimate-compression.go
 Run the program with the following command-line options:
 
 ```bash
-./bin/estimate-compression <directory> [options]
+./bin/zip-sizer <directory> [options]
 ```
 
 ## Positional Arguments
