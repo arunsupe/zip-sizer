@@ -17,14 +17,28 @@ const (
 	COMPRESSION_LEVEL = int(9)
 )
 
+// FileInfo struct to hold file path and size
 type FileInfo struct {
 	Path string
 	Size int64
 }
 
-// List all files in a directory and their sizes
-func listFilesWithSizes(directory string) ([]FileInfo, error) {
-	var filesWithSizes []FileInfo
+// Args struct to hold command line arguments
+type Args struct {
+	Directory            string  `arg:"positional,required" help:"Directory to scan for files"`
+	CompressionLevel     int     `arg:"-l,--compression-level" help:"Compression level (1-9)"`
+	CompressionAlgorithm string  `arg:"-a,--compression-algorithm" help:"Compression algorithm (gzip or bzip2)"`
+	SampleRatio          float64 `arg:"-r,--sample-ratio" help:"Sample ratio for compression estimation"`
+	HumanReadable        bool    `arg:"-h,--human-readable" help:"Display sizes in human-readable format"`
+}
+
+var totalSize int64
+
+// List all files in a directory and send their sizes
+// Send it down a channel as it arrives
+// This is done to avoid loading all file sizes into memory at once
+func listFilesWithSizes(directory string, fileInfoChan chan<- FileInfo) {
+	defer close(fileInfoChan)
 
 	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -32,40 +46,36 @@ func listFilesWithSizes(directory string) ([]FileInfo, error) {
 			return nil // Log the error and continue
 		}
 		if !info.IsDir() {
-			filesWithSizes = append(filesWithSizes, FileInfo{Path: path, Size: info.Size()})
+			fileInfoChan <- FileInfo{Path: path, Size: info.Size()}
 		}
 		return nil
 	})
 
 	if err != nil {
-		return nil, err
+		fmt.Printf("Error: %v\n", err)
 	}
-	return filesWithSizes, nil
 }
 
-// Stream sampled data
+// Sample sampleSize bytes from every chunkSize from the concatenated file stream
 // The basic idea is to pretend the files are a single large file and sample data from it
 // at regular intervals. This is done by calculating the offsets of the sampled data in the
 // concatenated file and then reading the data from the original files at those offsets.
-func streamSampledData(filesWithSizes []FileInfo, chunkSize, sampleSize int64) (io.Reader, error) {
-	totalSize := int64(0)
-	for _, file := range filesWithSizes {
-		totalSize += file.Size
-	}
-
-	samplingPoints := make([]int64, 0)
-	for i := chunkSize - sampleSize; i < totalSize; i += chunkSize {
-		samplingPoints = append(samplingPoints, i)
-	}
-
-	currentOffset := int64(0)
+// Extract sampled data from the original files and write it to a pipe
+// This allows us to stream the sampled data without loading all files into memory at once
+func streamSampledData(fileInfoChan <-chan FileInfo, chunkSize, sampleSize int64) (io.Reader, error) {
 	sampledDataPipe, sampledDataWriter := io.Pipe()
 
 	go func() {
 		defer sampledDataWriter.Close()
 
-		for _, file := range filesWithSizes {
-			if len(samplingPoints) == 0 || samplingPoints[0] >= currentOffset+file.Size {
+		totalSize = 0
+		currentOffset := int64(0)
+		nextSamplePoint := chunkSize - sampleSize // Initialize the first sample point
+
+		for file := range fileInfoChan {
+			totalSize += file.Size
+
+			if nextSamplePoint >= currentOffset+file.Size {
 				currentOffset += file.Size
 				continue
 			}
@@ -77,8 +87,8 @@ func streamSampledData(filesWithSizes []FileInfo, chunkSize, sampleSize int64) (
 			}
 			defer f.Close()
 
-			for len(samplingPoints) > 0 && currentOffset+file.Size > samplingPoints[0] {
-				relativeOffset := samplingPoints[0] - currentOffset
+			for nextSamplePoint < currentOffset+file.Size {
+				relativeOffset := nextSamplePoint - currentOffset
 				if _, err := f.Seek(relativeOffset, io.SeekStart); err != nil {
 					sampledDataWriter.CloseWithError(err)
 					return
@@ -98,7 +108,7 @@ func streamSampledData(filesWithSizes []FileInfo, chunkSize, sampleSize int64) (
 					}
 				}
 
-				samplingPoints = samplingPoints[1:]
+				nextSamplePoint += chunkSize
 			}
 
 			currentOffset += file.Size
@@ -109,6 +119,9 @@ func streamSampledData(filesWithSizes []FileInfo, chunkSize, sampleSize int64) (
 }
 
 // Compress data using a specified compression writer (supports gzip and bzip2)
+// compress the data from the sampled data stream, not saving the compressed data; just the compressed size
+// The compression ratio is calculated as the size of the compressed data divided by the size of the uncompressed data
+// The function returns the compression ratio as a float64
 func compressData(uncompressedInput io.Reader, compressionLevel int, compressionAlgorithm string) (float64, error) {
 	compressedSize := float64(0)
 	uncompressedSize := float64(0)
@@ -179,11 +192,44 @@ func compressData(uncompressedInput io.Reader, compressionLevel int, compression
 	return compressedSize / uncompressedSize, nil
 }
 
-type Args struct {
-	Directory            string  `arg:"positional,required" help:"Directory to scan for files"`
-	CompressionLevel     int     `arg:"-l,--compression-level" help:"Compression level (1-9)"`
-	CompressionAlgorithm string  `arg:"-a,--compression-algorithm" help:"Compression algorithm (gzip or bzip2)"`
-	SampleRatio          float64 `arg:"-r,--sample-ratio" help:"Sample ratio for compression estimation"`
+// Validate the command line arguments
+func validateArgs(args Args) error {
+	if stat, err := os.Stat(args.Directory); err != nil || !stat.IsDir() {
+		fmt.Printf("Provided path '%s' is not a directory.\n", args.Directory)
+		os.Exit(1)
+	}
+
+	// Check if the sample ratio is valid
+	if args.SampleRatio <= 0 || args.SampleRatio > 1 {
+		fmt.Printf("Sample ratio must be between 0 and 1.\n")
+		os.Exit(1)
+	}
+	// Check if the compression level is valid
+	if args.CompressionLevel < 1 || args.CompressionLevel > 9 {
+		fmt.Printf("Compression level must be between 1 and 9.\n")
+		os.Exit(1)
+	}
+	// Check if the compression algorithm is valid
+	if args.CompressionAlgorithm != "gzip" && args.CompressionAlgorithm != "bzip2" {
+		fmt.Printf("Compression algorithm must be 'gzip' or 'bzip2'.\n")
+		os.Exit(1)
+	}
+
+	return nil
+}
+
+// Convert bytes to human-readable format
+func convertToHumanReadable(size int64) string {
+
+	sizeFloat := float64(size)
+
+	units := []string{"B", "KB", "MB", "GB", "TB"}
+	index := 0
+	for sizeFloat >= 1024 && index < len(units)-1 {
+		sizeFloat /= 1024
+		index++
+	}
+	return fmt.Sprintf("%.2f %s", float64(sizeFloat), units[index])
 }
 
 func main() {
@@ -193,28 +239,29 @@ func main() {
 	args.SampleRatio = 0.1
 	arg.MustParse(&args)
 
-	if stat, err := os.Stat(args.Directory); err != nil || !stat.IsDir() {
-		fmt.Printf("Provided path '%s' is not a directory.\n", args.Directory)
+	// Validate the arguments
+	if err := validateArgs(args); err != nil {
+		fmt.Printf("Error validating arguments: %v\n", err)
 		os.Exit(1)
 	}
 
-	filesWithSizes, err := listFilesWithSizes(args.Directory)
-	if err != nil {
-		fmt.Printf("Error listing files: %v\n", err)
-		os.Exit(1)
-	}
-
-	totalOriginalSize := int64(0)
-	for _, file := range filesWithSizes {
-		totalOriginalSize += file.Size
-	}
-
+	// Calculate the sample size based on the sample ratio
 	sampleSize := int64(float64(CHUNKSIZE) * args.SampleRatio)
-	sampledData, err := streamSampledData(filesWithSizes, CHUNKSIZE, sampleSize)
+
+	// Create a channel to receive file sizes
+	fileInfoChan := make(chan FileInfo)
+
+	// Start a goroutine to list files and send their sizes to the channel
+	go listFilesWithSizes(args.Directory, fileInfoChan)
+
+	// Stream the sampled data from the files
+	sampledData, err := streamSampledData(fileInfoChan, CHUNKSIZE, sampleSize)
 	if err != nil {
 		fmt.Printf("Error streaming sampled data: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Compress the sampled data and calculate the compression ratio
 	compressedRatio, err := compressData(
 		sampledData,
 		args.CompressionLevel,
@@ -225,6 +272,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Total original size: %d bytes\n", totalOriginalSize)
-	fmt.Printf("Estimated compressed size: %d bytes\n", int64(float64(totalOriginalSize)*compressedRatio))
+	// Calculate the estimated compressed size based on the total size and compression ratio
+	estimatedCompressedSize := int64(float64(totalSize) * compressedRatio)
+	if args.HumanReadable {
+		fmt.Printf("Total original size: %s\n", convertToHumanReadable(totalSize))
+		fmt.Printf("Estimated compressed size: %s\n", convertToHumanReadable(estimatedCompressedSize))
+	} else {
+		fmt.Printf("Total original size: %d bytes\n", totalSize)
+		fmt.Printf("Estimated compressed size: %d bytes\n", estimatedCompressedSize)
+	}
 }
