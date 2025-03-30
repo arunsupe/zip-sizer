@@ -29,7 +29,7 @@ type Args struct {
 	CompressionLevel     int     `arg:"-l,--compression-level" help:"Compression level (1-9)"`
 	CompressionAlgorithm string  `arg:"-a,--compression-algorithm" help:"Compression algorithm (gzip or bzip2)"`
 	SampleRatio          float64 `arg:"-r,--sample-ratio" help:"Sample ratio for compression estimation"`
-	HumanReadable        bool    `arg:"-h,--human-readable" help:"Display sizes in human-readable format"`
+	HumanReadable        bool    `arg:"-u,--human-readable" help:"Display sizes in human-readable format"`
 }
 
 var totalSize int64
