@@ -6,7 +6,7 @@
 - very __`memory efficient`__ and __`fast`__
 - supports estimates for the `gzip` and `bzip2` algorithms
 - estimate for different compression levels (1-9)
-- Accuracy is about +/- 2.5% in my testing, but will obviously depend on type of files, size of the archive and sampling fraction.
+- Accuracy is about +/- 2.5% in my testing, but will obviously depend on type of files, size of the archive and sampling fraction. (Tested by comparing with `tar -cf - <directory> | gzip -9 | wc -c`)
 
 ## Example Usage
 
