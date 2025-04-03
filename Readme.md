@@ -30,11 +30,12 @@ bin/zip-sizer -l 5 -a gzip -r 0.1 ~/Downloads  10.30s user 0.34s system 106% cpu
 
 ## Installation
 
-### Prerequisites
+### Option 1. Precompiled binaries
 
--   Go (version 1.16 or later) must be installed on your system.
+Download a binary for your operating system from the [release page](https://github.com/arunsupe/zip-sizer/releases/tag/V0.2.0)
 
-### Clone and build
+
+### Option 2. Clone and build
 
 ```bash
 git clone https://github.com/arunsupe/zip-sizer.git
