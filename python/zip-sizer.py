@@ -8,6 +8,12 @@
 # Only uses stdlib modules and does not require any third-party libraries.
 # This is the python (much slower) version of the original go script, zip-sizer.go
 
+# Usage:
+# python zip-sizer.py <directory> [--algorithm <gzip|bzip2>] [--level <1-9>] [--sampling-ratio <0-1>] [--verbose]
+# Example:
+# Example usage:
+# python zip-sizer.py /home/$(whoami) --algorithm gzip --level 9 --sampling-ratio 0.1 --verbose
+
 import os
 import gzip
 import bz2
